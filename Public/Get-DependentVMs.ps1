@@ -7,7 +7,7 @@ function Get-DependentVMs {
 
     Begin {
         Write-EnhancedLog -Message "Starting Get-DependentVMs function" -Level "INFO"
-        Log-Params -Params @{ VHDXPath = $VHDXPath }
+        Log-Params -Params $PSCmdlet.MyInvocation.BoundParameters
     }
 
     Process {
@@ -21,11 +21,24 @@ function Get-DependentVMs {
             foreach ($vm in $allVMs) {
                 $hardDrives = $vm.HardDrives
                 foreach ($hd in $hardDrives) {
-                    $parentPath = (Get-VHD -Path $hd.Path).ParentPath
-                    if ($parentPath -eq $VHDXPath) {
-                        $dependentVMs.Add($vm)
-                        Write-EnhancedLog -Message "Dependent VM: $($vm.Name)" -Level "INFO"
-                        break
+                    try {
+                        # Check if the VHD file exists before trying to access it
+                        if (Test-Path $hd.Path) {
+                            # Attempt to get the parent path of the VHD
+                            $parentPath = (Get-VHD -Path $hd.Path).ParentPath
+
+                            if ($parentPath -eq $VHDXPath) {
+                                $dependentVMs.Add($vm)
+                                Write-EnhancedLog -Message "Dependent VM: $($vm.Name)" -Level "INFO"
+                                break
+                            }
+                        } else {
+                            # Log a warning if the VHDX file does not exist
+                            Write-EnhancedLog -Message "Warning: VHDX file not found: $($hd.Path). Skipping VM: $($vm.Name)" -Level "WARNING"
+                        }
+                    } catch {
+                        # Log a warning if there was an error accessing the VHDX file
+                        Write-EnhancedLog -Message "Warning: An error occurred while accessing VHDX file: $($hd.Path). Skipping VM: $($vm.Name)" -Level "WARNING"
                     }
                 }
             }
